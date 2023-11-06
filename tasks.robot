@@ -35,10 +35,17 @@ Order robots from RobotSpareBin Industries Inc
 
 *** Keywords ***
 Open the robot order website
+    List Directories In Directory
     Open Available Browser    https://robotsparebinindustries.com/#/robot-order
 
 Close the order site modal
     Click Button    css:.btn-dark
+
+Get orders
+    Download    https://robotsparebinindustries.com/orders.csv    overwrite=True
+    ${orders}=    Read table from CSV    orders.csv
+    ${rows}    ${columns}=    Get Table Dimensions    ${orders}
+    RETURN    ${orders}
 
 Read the orders file and loop through it
     Mute Run On Failure    Save robot details
@@ -47,12 +54,6 @@ Read the orders file and loop through it
         Fill in an order    ${order}
         Submit an order    ${order}
     END
-
-Get orders
-    Download    https://robotsparebinindustries.com/orders.csv    overwrite=True
-    ${orders}=    Read table from CSV    orders.csv
-    ${rows}    ${columns}=    Get Table Dimensions    ${orders}
-    Log To Console    Table has ${rows} rows and ${columns} columns
     RETURN    ${orders}
 
 Fill in an order
@@ -73,8 +74,7 @@ Click order button
         Click Button    id:order
         Save robot details    ${order}
         Click Button    id:order-another
-    EXCEPT    AS    ${error_message}
-        Log To Console    ${error_message}
+    EXCEPT
         Click Button    id:order-another
     FINALLY
         Click Button    css:.btn-dark
@@ -86,23 +86,29 @@ Save robot details
     Wait Until Element Is Visible    id:receipt
     Wait Until Element Is Visible    id:robot-preview-image
     ${receipt_html}=    RPA.Browser.Selenium.Get Element Attribute    id:receipt    outerHTML
-    ${robo_screenshot}=    Screenshot
+    Screenshot
     ...    id:robot-preview-image
-    ...    ${OUTPUT_DIR}${/}receipts${/}preview_${order_number}.png
-    Build PDF receipt    ${receipt_html}    ${order_number}    ${robo_screenshot}
+    ...    ${OUTPUT_DIR}${/}temp${/}preview_${order_number}.png
+    Build PDF receipt    ${receipt_html}    ${order_number}
+    Add preview to PDF    ${order_number}
 
 Build PDF receipt
-    [Arguments]    ${receipt_html}    ${order_number}    ${robo_screenshot}
-    Html To Pdf    ${receipt_html}    ${OUTPUT_DIR}${/}receipts${/}order_${order_number}.pdf    margin=20
+    [Arguments]    ${receipt_html}    ${order_number}
+    Html To Pdf    ${receipt_html}    ${OUTPUT_DIR}${/}temp${/}order_${order_number}.pdf    margin=20
+
+Add preview to PDF
+    [Arguments]    ${order_number}
     Add Watermark Image To Pdf
-    ...    ${robo_screenshot}
-    ...    ${OUTPUT_DIR}${/}receipts${/}order_${order_number}.pdf
-    ...    ${OUTPUT_DIR}${/}receipts${/}order_${order_number}.pdf
+    ...    image_path=${OUTPUT_DIR}${/}temp${/}preview_${order_number}.png
+    ...    output_path=${OUTPUT_DIR}${/}temp${/}order_${order_number}.pdf
+    ...    source_path=${OUTPUT_DIR}${/}temp${/}order_${order_number}.pdf
+    ...    coverage=0.18
     Close Pdf
-    Remove File    ${OUTPUT_DIR}${/}receipts${/}preview_${order_number}.png
+    Remove File    ${OUTPUT_DIR}${/}temp${/}preview_${order_number}.png
 
 Package Orders
-    Archive Folder With Zip    ${OUTPUT_DIR}${/}receipts    orders.zip
+    Archive Folder With Zip    ${OUTPUT_DIR}${/}temp${/}    ${OUTPUT_DIR}${/}orders.zip
+    Remove Directory    ${OUTPUT_DIR}${/}temp${/}    recursive=${True}
 
 Wrap up
     Close Browser
